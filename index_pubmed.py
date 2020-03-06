@@ -316,7 +316,6 @@ class Helper():
             self.queue = self.get_metadata_from_xml(target_file.replace(".gz", ""))
             self.store_targets()
             subprocess.call(["rm", target_file.replace(".gz", "")])
-            pickle.dump(n, open("pubmed_progress.p", "wb"))
 
     def update(self):
         """
