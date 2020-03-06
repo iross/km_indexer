@@ -1,0 +1,42 @@
+version: '2.3'
+services:
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
+    container_name: es01
+    environment:
+      - node.name=es01
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - type: bind
+        source: ./es_data
+        target: /usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - kmnet
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  ingest_elastic:
+      build: .
+      networks:
+        - kmnet
+      command: "/bin/bash ./wait_for_it.sh -t 0 es01:9200 -- python index_pubmed.py bulk --n_min 1 --n_max 1"
+      depends_on:
+        - es01
+
+volumes:
+  esdata01:
+    driver: local
+
+networks:
+  kmnet:
