@@ -33,6 +33,8 @@ services:
       command: "/bin/bash ./wait_for_it.sh -t 0 es01:9200 -- python index_pubmed.py bulk --n_min 1 --n_max 1"
       depends_on:
         - es01
+      environment:
+        - PYTHONUNBUFFERED=1
 
 volumes:
   esdata01:
