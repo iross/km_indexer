@@ -40,6 +40,17 @@ It is also possible to ingest the daily update files provided by MEDLINE
 (`ftp://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles/`). **BY DEFAULT, ALL UPDATE
 FILES WILL BE APPLIED IN THIS MODE**
 
+## Abbreviation expansion
+Abberviation expansion is done via the ALLIE (http://allie.dbcls.jp) database.
+By default, abbrevations are kept as-is from PubMed, but by changing the setting in `.env`
+to 
+
+```
+EXPAND_ABBREVIATIONS=1
+```
+
+The ALLIE database will be downloaded and installed into a postgres table. As the PubMed abstracts are ingested, this database is queried and any abbreviations found within the abstract are replaced with the long form, and the result is stored within the `abstract_long_form` field.
+
 ## Caveats
 - The intended use is for testing of query logic, and the JVM options set for
   Elasticsearch are set with this in mind.

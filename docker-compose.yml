@@ -30,11 +30,29 @@ services:
       build: .
       networks:
         - kmnet
-      command: "/bin/bash ./wait_for_it.sh -t 0 es01:9200 -- python index_pubmed.py bulk --n_min 1 --n_max 1"
+      command: "wait-for-it -s es01:9200 -s km_postgres:5432 -- python index_pubmed.py bulk --n_min 1 --n_max 1"
       depends_on:
         - es01
       environment:
         - PYTHONUNBUFFERED=1
+        - EXPAND_ABBREVIATIONS=${EXPAND_ABBREVIATIONS}
+
+  postgres:
+      container_name: km_postgres
+      restart: always
+      image: postgres:latest
+      environment:
+          - POSTGRES_PASSWORD=supersecretpassword
+          - POSTGRES_USER=kinderminer
+      volumes:
+          - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+          - type: bind
+            source: ./allie_data
+            target: /var/lib/postgresql/data
+      networks:
+        - kmnet
+      ports:
+        - "5432:5432"
 
 volumes:
   esdata01:
