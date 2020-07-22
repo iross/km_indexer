@@ -8,7 +8,12 @@ from elasticsearch import Elasticsearch, helpers
 from xml.etree import ElementTree as ET
 import re
 import ftplib
+import psycopg2
+import psycopg2.extras
+import urllib.request as urllib
 import pickle
+
+DO_ABBREVIATIONS = True
 
 es = Elasticsearch(['es01:9200'])
 
@@ -157,11 +162,15 @@ def update_mapping(index_name, type_name):
        return 0
 
 class Helper():
+    def __init__(self):
+        self.conn = psycopg2.connect("dbname=%s user=%s password=%s host=%s port=%s" % \
+                    ("kinderminer", "kinderminer", "supersecretpassword", "km_postgres", "5432"))
+        self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
     def get_metadata_from_xml(self, filepath):
         """
         """
         metadata = {}
-
 
         parser = ET.iterparse(filepath)
 
@@ -271,6 +280,14 @@ class Helper():
 
                 temp["metadata_update"] = datetime.datetime.now()
 
+                if DO_ABBREVIATIONS:
+                    print("Checking for abbreviations")
+                    self.cur.execute("SELECT DISTINCT(short_form, long_form), short_form, long_form FROM alice_abbreviations WHERE pubmed_id=%(pmid)s",
+                            {"pmid" : temp["PMID"]})
+                    for abbr in self.cur:
+                        print("Abbreviation found!")
+                        temp["abstract_long_form"] = temp["abstract"].replace(abbr['short_form'], abbr['long_form'])
+
                 temp['time'] = [datetime.datetime.now()]
 
                 element.clear()
@@ -344,6 +361,33 @@ class Helper():
             updates_applied.add(update_file)
             pickle.dump(updates_applied, open("pubmed_updates_applied.p", "w"))
 
+def download_allie():
+    psql_fetching_conn = psycopg2.connect("dbname=%s user=%s password=%s host=%s port=%s" % \
+                ("kinderminer", "kinderminer", "supersecretpassword", "km_postgres", "5432"))
+    cur = psql_fetching_conn.cursor()
+
+    update_file = 'alice_output_latest.txt.gz'
+    print('ftp://ftp.dbcls.jp/allie/alice_output/%s' % update_file)
+    urllib.urlretrieve('ftp://ftp.dbcls.jp/allie/alice_output/%s' % update_file, update_file)
+    subprocess.call(["gunzip", '%s' % update_file])
+    print("Cleaning up text")
+    subprocess.call(["sed", "s/\\\\/\\\\\\\\/g", "-i", update_file.replace(".gz", "")])
+    print("Copying into postgres")
+
+    # TODO: Need to make sure the table is there... but that can be done at the docker level
+
+    try:
+        with open(update_file.replace(".gz", "")) as fin:
+            cur.copy_from(fin, "alice_abbreviations")
+            psql_fetching_conn.commit()
+        #subprocess.call(["rm", update_file.replace(".gz", "")])
+    except:
+        print("Error copying %s" % update_file)
+        print(sys.exc_info())
+        psql_fetching_conn.commit()
+        #subprocess.call(["rm", update_file.replace(".gz", "")])
+    return 0
+
 def main():
     parser = argparse.ArgumentParser(
         description="Utility for indexing PubMed abstracts into Elasticsearch to make them full-text searchable."
@@ -351,6 +395,11 @@ def main():
     parser.add_argument('operation', default='bulk', type=str, help='Operation to perform -- either "bulk" (for bulk ingest of annual dump) or "update" to process all daily updates.')
     parser.add_argument('--n_min', default=1, type=int, help='Minimum file number to process.')
     parser.add_argument('--n_max', default=1, type=int, help='Maximum file number to process.')
+
+
+    # TODO: pass + do in abbreviation embiggening
+    #if DO_ABBREVIATIONS:
+        #download_allie()
 
     if not es.indices.exists("pubmed_abstracts"):
         es.indices.create("pubmed_abstracts")
@@ -367,6 +416,6 @@ def main():
     else:
         print("Invalid operation specified!")
         sys.exit(1)
-
+#
 if __name__ == '__main__':
     main()

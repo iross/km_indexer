@@ -1,2 +1,4 @@
 elasticsearch
 python-dateutil
+psycopg2
+wait-for-it
