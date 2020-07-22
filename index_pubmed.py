@@ -13,7 +13,7 @@ import psycopg2.extras
 import urllib.request as urllib
 import pickle
 
-DO_ABBREVIATIONS = True
+EXPAND_ABBREVIATIONS = True if os.environ['EXPAND_ABBREVIATIONS'] == '1' else False
 
 es = Elasticsearch(['es01:9200'])
 
@@ -280,7 +280,7 @@ class Helper():
 
                 temp["metadata_update"] = datetime.datetime.now()
 
-                if DO_ABBREVIATIONS:
+                if EXPAND_ABBREVIATIONS:
                     print("Checking for abbreviations")
                     self.cur.execute("SELECT DISTINCT(short_form, long_form), short_form, long_form FROM alice_abbreviations WHERE pubmed_id=%(pmid)s",
                             {"pmid" : temp["PMID"]})
@@ -396,10 +396,9 @@ def main():
     parser.add_argument('--n_min', default=1, type=int, help='Minimum file number to process.')
     parser.add_argument('--n_max', default=1, type=int, help='Maximum file number to process.')
 
-
-    # TODO: pass + do in abbreviation embiggening
-    #if DO_ABBREVIATIONS:
-        #download_allie()
+    if EXPAND_ABBREVIATIONS:
+        print("Downloading ALLIE abbreviation expansion database...")
+        download_allie()
 
     if not es.indices.exists("pubmed_abstracts"):
         es.indices.create("pubmed_abstracts")
