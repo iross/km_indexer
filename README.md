@@ -23,6 +23,7 @@ the Elasticsearch data and run + build the docker images:
 
 ```
 mkdir es_data
+# If you want to use abbreviation expansion, then you'll also need to mkdir allie_data as well
 docker-compose up --build
 ```
 Now you can run ES queries against on the host machine: `curl -X GET http://localhost:9200/pubmed_abstracts/_count`
