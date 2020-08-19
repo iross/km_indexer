@@ -1,7 +1,7 @@
 from urllib.request import urlretrieve
 import datetime
 from dateutil.parser import parse
-import sys, os
+import sys, os, io
 import subprocess
 import argparse
 from elasticsearch import Elasticsearch, helpers
@@ -281,11 +281,9 @@ class Helper():
                 temp["metadata_update"] = datetime.datetime.now()
 
                 if EXPAND_ABBREVIATIONS:
-                    print("Checking for abbreviations")
                     self.cur.execute("SELECT DISTINCT(short_form, long_form), short_form, long_form FROM alice_abbreviations WHERE pubmed_id=%(pmid)s",
                             {"pmid" : temp["PMID"]})
                     for abbr in self.cur:
-                        print("Abbreviation found!")
                         temp["abstract_long_form"] = temp["abstract"].replace(abbr['short_form'], abbr['long_form'])
 
                 temp['time'] = [datetime.datetime.now()]
@@ -317,7 +315,7 @@ class Helper():
             helpers.bulk(es, actions)
             return 0
         except:
-            print("Error in writing targets to 'fetchable' table!")
+            print("Error in writing documents to Elasticsearch")
             print(sys.exc_info())
             return 1
 
@@ -366,26 +364,43 @@ def download_allie():
                 ("kinderminer", "kinderminer", "supersecretpassword", "km_postgres", "5432"))
     cur = psql_fetching_conn.cursor()
 
-    update_file = 'alice_output_latest.txt.gz'
-    print('ftp://ftp.dbcls.jp/allie/alice_output/%s' % update_file)
-    urllib.urlretrieve('ftp://ftp.dbcls.jp/allie/alice_output/%s' % update_file, update_file)
-    subprocess.call(["gunzip", '%s' % update_file])
-    print("Cleaning up text")
-    subprocess.call(["sed", "s/\\\\/\\\\\\\\/g", "-i", update_file.replace(".gz", "")])
-    print("Copying into postgres")
+    cur.execute("SELECT md5 FROM alice_versions ORDER BY id DESC;")
+    try:
+        stored_ver = cur.fetchone()[0]
+    except:
+        stored_ver = None
 
-    # TODO: Need to make sure the table is there... but that can be done at the docker level
+    update_md5 = 'alice_output_latest.md5'
+    latest_md5, latest_filename = io.BytesIO(urllib.urlopen('ftp://ftp.dbcls.jp/allie/alice_output/%s' % update_md5).read()).read().split()
+    latest_md5 = latest_md5.decode('utf-8')
+    latest_filename = latest_filename.decode('utf-8')
+
+    if latest_md5 == stored_ver:
+        print("Latest ALLIE abbreviations already loaded! Skipping.")
+        return 0
+    else:
+        print(f"Downloading ALLIE abbreviation expansion database ({latest_filename})...")
+
+#    print('ftp://ftp.dbcls.jp/allie/alice_output/%s' % latest_filename)
+    urllib.urlretrieve('ftp://ftp.dbcls.jp/allie/alice_output/%s' % latest_filename, latest_filename)
+    print("File downloaded. Unzipping...")
+    subprocess.call(["gunzip", '%s' % latest_filename])
+    print("Cleaning up text...")
+    subprocess.call(["sed", "s/\\\\/\\\\\\\\/g", "-i", latest_filename.replace(".gz", "")])
+    print("Copying into postgres...")
 
     try:
-        with open(update_file.replace(".gz", "")) as fin:
+        with open(latest_filename.replace(".gz", "")) as fin:
             cur.copy_from(fin, "alice_abbreviations")
+            cur.execute("INSERT INTO alice_versions (md5, filename) VALUES (%s, %s)", (latest_md5, latest_filename))
             psql_fetching_conn.commit()
-        #subprocess.call(["rm", update_file.replace(".gz", "")])
+
+        #subprocess.call(["rm", latest_filename.replace(".gz", "")])
     except:
-        print("Error copying %s" % update_file)
+        print("Error copying %s" % latest_filename)
         print(sys.exc_info())
         psql_fetching_conn.commit()
-        #subprocess.call(["rm", update_file.replace(".gz", "")])
+        #subprocess.call(["rm", latest_filename.replace(".gz", "")])
     return 0
 
 def main():
@@ -397,7 +412,6 @@ def main():
     parser.add_argument('--n_max', default=1, type=int, help='Maximum file number to process.')
 
     if EXPAND_ABBREVIATIONS:
-        print("Downloading ALLIE abbreviation expansion database...")
         download_allie()
 
     if not es.indices.exists("pubmed_abstracts"):
