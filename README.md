@@ -18,7 +18,7 @@ Documents use the PMID as the `_id` primary key.
 
 
 ## Usage
-Basic usage requires docker and docker compose. Create a local directory for
+Basic usage requires [docker](https://www.docker.com) and [docker compose](https://docs.docker.com/compose/). Create a local directory for
 the Elasticsearch data and run + build the docker images:
 
 ```
@@ -52,10 +52,16 @@ EXPAND_ABBREVIATIONS=1
 
 The ALLIE database will be downloaded and installed into a postgres table. As the PubMed abstracts are ingested, this database is queried and any abbreviations found within the abstract are replaced with the long form, and the result is stored within the `abstract_long_form` field.
 
-## Caveats
+Which version has been downloaded is tracked in the postgres database. The latest version will be installed if it is detected that it is newer than what is stored locally.
+
+## Notes
 - The intended use is for testing of query logic, and the JVM options set for
   Elasticsearch are set with this in mind.
 - There is rudimentary checkpointing applied when running in the update files
   mode, but is non-persistent across image restarts. This means that if you
   need to restart the image, the data within Elasticsearch will still be there,
   but the update files will all be redownloaded and updated.
+- `docker-compose up --build` will bring up both the required backend services (Elasticsearch and postgres), along with the ingestion script.
+  - It is possible to selectively bring up service by providing their name (`es01`, `postgres`, or `ingest_elastic`). For example, if you've already ingested data and are only interested in querying Elasticsearch, `docker-compose up es01` will bring up only the Elasticsearch services.
+  - Full documentation of the docker-compose command is [here](https://docs.docker.com/compose/reference/overview/).
+
