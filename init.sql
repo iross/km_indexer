@@ -45,7 +45,8 @@ CREATE INDEX alice_abbreviations_pubmed_id_idx ON public.alice_abbreviations USI
 
 CREATE TABLE public.alice_versions (
     id SERIAL,
-    md5 text
+    md5 text,
+    filename text
 );
 
 ALTER TABLE public.alice_versions OWNER TO kinderminer;
