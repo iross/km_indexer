@@ -397,7 +397,6 @@ def download_allie():
     to_insert = glob.glob("allie_*")
     print("Copying abbreviations into database.")
     for abbrev_file in to_insert:
-        n+=1
         subprocess.call(["sed", "s/\\\\/\\\\\\\\/g", "-i", abbrev_file])
 
         try:
@@ -405,7 +404,8 @@ def download_allie():
                 cur.copy_from(fin, "alice_abbreviations")
                 psql_fetching_conn.commit()
             subprocess.call(["rm", abbrev_file])
-            print(f"Copied {n} of {len(to_insert)} abbreviation files into database...")
+            n_inserted+=1
+            print(f"Copied {n_inserted} of {len(to_insert)} abbreviation files into database...")
         except:
             print("Error copying %s" % abbrev_file)
             print(sys.exc_info())
