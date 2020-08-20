@@ -6,7 +6,9 @@ import subprocess
 import argparse
 from elasticsearch import Elasticsearch, helpers
 from xml.etree import ElementTree as ET
+import glob
 import re
+import time
 import ftplib
 import psycopg2
 import psycopg2.extras
@@ -381,26 +383,36 @@ def download_allie():
     else:
         print(f"Downloading ALLIE abbreviation expansion database ({latest_filename})...")
 
-#    print('ftp://ftp.dbcls.jp/allie/alice_output/%s' % latest_filename)
     urllib.urlretrieve('ftp://ftp.dbcls.jp/allie/alice_output/%s' % latest_filename, latest_filename)
-    print("File downloaded. Unzipping...")
-    subprocess.call(["gunzip", '%s' % latest_filename])
-    print("Cleaning up text...")
-    subprocess.call(["sed", "s/\\\\/\\\\\\\\/g", "-i", latest_filename.replace(".gz", "")])
-    print("Copying into postgres...")
-
+    print("Abbreviations file downloaded. Unzipping and splitting into chunks...")
     try:
-        with open(latest_filename.replace(".gz", "")) as fin:
-            cur.copy_from(fin, "alice_abbreviations")
-            cur.execute("INSERT INTO alice_versions (md5, filename) VALUES (%s, %s)", (latest_md5, latest_filename))
-            psql_fetching_conn.commit()
-
-        #subprocess.call(["rm", latest_filename.replace(".gz", "")])
+        gunzip = subprocess.Popen(["gunzip", '-c',  latest_filename], stdout=subprocess.PIPE)
+        split = subprocess.Popen(['split', '-l', '1000000', '-', 'allie_'], stdin=gunzip.stdout)
+        gunzip.stdout.close()
+        _, _ = split.communicate()
     except:
-        print("Error copying %s" % latest_filename)
-        print(sys.exc_info())
-        psql_fetching_conn.commit()
-        #subprocess.call(["rm", latest_filename.replace(".gz", "")])
+        print("Unzipping failed!")
+        sys.exit(1)
+    n_inserted = 0
+    to_insert = glob.glob("allie_*")
+    print("Copying abbreviations into database.")
+    for abbrev_file in to_insert:
+        n+=1
+        subprocess.call(["sed", "s/\\\\/\\\\\\\\/g", "-i", abbrev_file])
+
+        try:
+            with open(abbrev_file) as fin:
+                cur.copy_from(fin, "alice_abbreviations")
+                psql_fetching_conn.commit()
+            subprocess.call(["rm", abbrev_file])
+            print(f"Copied {n} of {len(to_insert)} abbreviation files into database...")
+        except:
+            print("Error copying %s" % abbrev_file)
+            print(sys.exc_info())
+            psql_fetching_conn.commit()
+            subprocess.call(["rm", abbrev_file])
+    cur.execute("INSERT INTO alice_versions (md5, filename) VALUES (%s, %s)", (latest_md5, latest_filename))
+    psql_fetching_conn.commit()
     return 0
 
 def main():
