@@ -43,6 +43,13 @@ ALTER TABLE public.alice_abbreviations OWNER TO kinderminer;
 
 CREATE INDEX alice_abbreviations_pubmed_id_idx ON public.alice_abbreviations USING btree (pubmed_id);
 
+CREATE TABLE public.alice_versions (
+    id SERIAL,
+    md5 text,
+    filename text
+);
+
+ALTER TABLE public.alice_versions OWNER TO kinderminer;
 --
 -- PostgreSQL database dump complete
 --
