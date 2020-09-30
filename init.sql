@@ -50,6 +50,17 @@ CREATE TABLE public.alice_versions (
 );
 
 ALTER TABLE public.alice_versions OWNER TO kinderminer;
+
+
+CREATE TABLE public.pubmed_ingested (
+    filename text
+);
+
+CREATE INDEX pubmed_ingested_filename ON public.pubmed_ingested USING btree(filename);
+
+ALTER TABLE public.pubmed_ingested OWNER TO kinderminer;
+
+
 --
 -- PostgreSQL database dump complete
 --

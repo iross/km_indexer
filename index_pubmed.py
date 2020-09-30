@@ -324,15 +324,26 @@ class Helper():
     def bulk(self, min_n = 1, max_n = 1):
         """
         """
+        conn = psycopg2.connect("dbname=%s user=%s password=%s host=%s port=%s" % \
+                    ("kinderminer", "kinderminer", "supersecretpassword", "km_postgres", "5432"))
+        cur = conn.cursor()
+
         print(f"Indexing annual dump files {min_n} to {max_n}.")
         for n in range(min_n, max_n + 1):
             target_file = "pubmed20n%04d.xml.gz" % n
+            cur.execute("SELECT 1 FROM pubmed_ingested WHERE filename=%(target_file)s;", {"target_file" : target_file})
+            check = cur.fetchone()
+            if check is not None:
+                print(f"Already ingested {target_file}! Skipping.")
+                continue
             print(f"Getting {target_file}")
             urlretrieve('ftp://ftp.ncbi.nlm.nih.gov/pubmed/baseline/%s' % target_file, target_file)
             subprocess.call(["gunzip", target_file])
             self.queue = self.get_metadata_from_xml(target_file.replace(".gz", ""))
             self.store_targets()
             subprocess.call(["rm", target_file.replace(".gz", "")])
+            cur.execute("INSERT INTO pubmed_ingested (filename) VALUES (%(target_file)s)", {"target_file": target_file})
+            conn.commit()
 
     def update(self):
         """
